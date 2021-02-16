@@ -1,0 +1,5 @@
+{
+  "grid_res": 16,
+  "grid_name": "healpix",
+  "path": "grid"
+}
