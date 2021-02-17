@@ -1,17 +1,6 @@
 # Equivariant Spherical Deconvolution
 PyTorch implementation of Equivariant Spherical Deconvolution: Learning Sparse Orientation Distribution Functions from Spherical Data. Main application of this work is for diffusion MRI and fODF estimation.
 
-If you use this repository and find it usefull, please cite our paper:
-
-```
-@inproceedings{esd_ipmi,
-  title = {Equivariant Spherical Deconvolution: Learning Sparse Orientation Distribution Functions from Spherical Data},
-  author = {Elaldi, Axel and Dey, Neel and Kim, Heejong and Gerig, Guido},
-  booktitle = {Information Processing in Medical Imaging (IPMI)},
-  year = {2021},
-}
-```
-
 ## 1. Getting started
 
 1. We use [DeepSphere](https://github.com/deepsphere/deepsphere-pytorch) for our convolution layers. Follow their installation instructions.
