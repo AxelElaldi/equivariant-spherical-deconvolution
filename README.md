@@ -10,7 +10,7 @@ The response functions are given to the network and are stored as [spherical har
 
 ## 1. Getting started
 
-Install the following library:
+Set up the python environment:
 
 ```
     conda create -n esd python=3.8
@@ -33,7 +33,7 @@ Install the following library:
 In a root folder:
 * Copy your diffusion MRI data (resp. the mask) as a nifti file under the name **features.nii** (**mask.nii**). 
 * Copy your bvecs and bvals files under the names **bvecs.bvecs** and **bvals.bvals**.
-* In the root folder, create a folder for the response functions, called **response_functions**. There, create a folder for each response function estimation algorithm you want to use. We will use as example folder the name **rf_algo**. In each algorithm folder, copy the white matter, grey matter, and CSF reponse function files under the names **wm_response.txt**, **gm_response.txt**, and **csf_response.txt**. We refer to [Mrtrix3](https://mrtrix.readthedocs.io/en/0.3.16/concepts/response_function_estimation.html) for different response function algorithms.
+* In the root folder, create a folder for the response functions, called **response_functions**. There, create a folder for each response function estimation algorithm you want to use. We will use the name **rf_algo** as example folder. In each algorithm folder, copy the white matter, grey matter, and CSF reponse function files under the names **wm_response.txt**, **gm_response.txt**, and **csf_response.txt**. We refer to [Mrtrix3](https://mrtrix.readthedocs.io/en/0.3.16/concepts/response_function_estimation.html) for different response function algorithms.
 
 ## 3. Short example
 ```python:
