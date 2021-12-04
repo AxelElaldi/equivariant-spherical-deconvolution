@@ -1,7 +1,7 @@
 # Equivariant Spherical Deconvolution
 PyTorch implementation of the paper [Equivariant Spherical Deconvolution: Learning Sparse Orientation Distribution Functions from Spherical Data](https://arxiv.org/abs/2102.09462) from Axel Elaldi*, Neel Dey*, Heejong Kim and Guido Gerig (*equal contribution). Main application of this work is for diffusion MRI and fODF estimation, and can be extended to other deconvolution problem.
 
-![alt text](http://url/to/img.png)
+![alt text](https://github.com/AxelElaldi/equivariant-spherical-deconvolution/blob/esd/img/summary.png)
 
 We use the spherical graph convolution from [DeepSphere](https://github.com/deepsphere/deepsphere-pytorch).
 
@@ -187,6 +187,6 @@ You can test a trained model on your data using the following bash command:
 ```
 
 ## 10. Result
-![alt text](http://url/to/img.png)
+![alt text](https://github.com/AxelElaldi/equivariant-spherical-deconvolution/blob/esd/img/drawing-fodf_synth.png)
 
-![alt text](http://url/to/img.png)
+![alt text](https://github.com/AxelElaldi/equivariant-spherical-deconvolution/blob/esd/img/summary.png)
