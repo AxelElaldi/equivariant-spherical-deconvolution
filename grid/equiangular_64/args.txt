@@ -1,5 +1,0 @@
-{
-  "grid_res": 64,
-  "grid_name": "equiangular",
-  "path": "grid"
-}

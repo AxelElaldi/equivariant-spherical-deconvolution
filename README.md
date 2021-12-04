@@ -1,95 +1,192 @@
 # Equivariant Spherical Deconvolution
-PyTorch implementation of the paper [Equivariant Spherical Deconvolution: Learning Sparse Orientation Distribution Functions from Spherical Data](https://arxiv.org/abs/2102.09462) from Axel Elaldi*, Neel Dey*, Heejong Kim and Guido Gerig (*equal contribution). Main application of this work is for diffusion MRI and fODF estimation.
+PyTorch implementation of the paper [Equivariant Spherical Deconvolution: Learning Sparse Orientation Distribution Functions from Spherical Data](https://arxiv.org/abs/2102.09462) from Axel Elaldi*, Neel Dey*, Heejong Kim and Guido Gerig (*equal contribution). Main application of this work is for diffusion MRI and fODF estimation, and can be extended to other deconvolution problem.
+
+![alt text](http://url/to/img.png)
+
+We use the spherical graph convolution from [DeepSphere](https://github.com/deepsphere/deepsphere-pytorch).
+
+## 1. Problem statement
+
+The objective of the proposed network is to deconvolve the spherical input data $I:\mathcal{S}^2\longrightarrow\mathbb{R}^s$ ($s$ being the number of shell) with a set of polar spherical reponse functions $\{R_1,...,R_n\}:\mathcal{S}^2\longrightarrow\mathbb{R}^s$, to recover the set of deconvolved signals $\{D_1,...,D_n\}:\mathcal{S}^2\longrightarrow\mathbb{R}$ such that:
+$$I(\theta,\phi) = \sum_{i=1}^n (D_i * R_i)(\theta,\phi)$$
+where a polar spherical signal is a spherical signal depending only on the latitude and $*$ is the spherical convolution operator.
+
+The set $D=\{D_1,...,D_n\}$ is recovered with a Spherical Graph Convolution Network $\psi$.
+$$D = \psi(I)$$
+and we minize a reconstruction loss
+$$\mathcal{L} = ||I - \sum_{i=1}^n (\psi(I)_i * R_i)||_2^2$$
+
+The response functions are given to the network and are stored as [spherical harmonic coefficients](https://en.wikipedia.org/wiki/Spherical_harmonics) (SHC). Since these signals are polar signals, every SHCs are nulls but the ones of order 0. Thus, a reponse function is a matrix of size $S \times L$, where $S$ is the number of input shells and $L$ is the maximum spherical harmonic degree of the response functions. A response function file as a txt file with S rows and L columns ([Mrtrix](https://mrtrix.readthedocs.io/en/3.0.1/concepts/spherical_harmonics.html) convention):
+
+C_{1,0} C_{1,1} ... C_{1,l} # l degree SHC for Shell 1
+
+...
+
+C_{s,0} C_{s,1} ... C_{s,l} # l degree SHC for Shell s
+
 
 ## 1. Getting started
 
-1. We use [DeepSphere](https://github.com/deepsphere/deepsphere-pytorch) for our convolution layers. Follow their installation instructions.
-
-2. We use [Dipy](https://dipy.org/), [Healpy](https://healpy.readthedocs.io/en/latest/), [Scipy](https://www.scipy.org/), [Nibabel](https://nipy.org/nibabel/), [Matplotlib](https://matplotlib.org/stable/index.html), [Pandas](https://pandas.pydata.org/) and [Seaborn](https://seaborn.pydata.org/)
-
-To run the CSD algorithms, you'll need to install [Mrtrix3](https://mrtrix.readthedocs.io/en/latest/installation/package_install.html) (SSST and MSMT) and [MRtrix3Tissue](https://3tissue.github.io/doc/ss3t-csd.html) (SSMT).
-
-## 2. How to use ESD.
-We provide notebooks to run the different components of the project.
-
-### 2.1 Data preparation
-Two options. Either simulate a **synthetic dataset** or work with a **real dataset**.
-
-#### Synthetic dataset (notebook/2. Synthetic dataset creation):
-We provide a script to create a Multi-Tissue synthetic dataset, which needs pre-computed Reponse Functions for each tissue and a gradients scheme. We provide examples of such gradient schemes and Response Functions in `scheme_example/`.
-
-* Create the ground-truth data:
+Install the following library:
 
 ```
-python generate_data/2_ground_truth_generation.py --max_tensor 3 --n_data 1000 --n_save 1000 --start 1 --path /mnt/archive/data/synthetic_data --rand_tensor --rand_angles --rand_vf_tissue
-```
-
-* Generate the synthetic dataset:
-
-To generate the synthetic dataset, you will need a scheme (bvecs and bvals files) and the three tissue response functions matching the scheme bvals.
-
-To use your own scheme, add in the folder `scheme_example/` a new directory, name it with the name of your scheme, add the `bvals.bvals` and the `bvecs.bvecs` files to it, and add the three response function files. The response functions files are the same as the ones from the `dwi2rf` Mrtrix function.
-
-```
-python generate_data/3_signal_generation.py --snr 20 --n_save 1000 --base_path /mnt/archive/data/synthetic_data --name_scheme 64_points_3_shell --rf_path scheme_example/64_points_3_shell
-```
-
-* Convert the pkl file into a nii file:
+    conda create -n esd python=3.8
+    source activate esd
+    pip install git+https://github.com/epfl-lts2/pygsp.git@39a0665f637191152605911cf209fc16a36e5ae9#egg=PyGSP
+    pip install numpy scipy matplotlib ipython jupyter pandas sympy nose
+    pip install nibabel
+    conda install pytorch torchvision torchaudio cudatoolkit=10.2 -c pytorch # Tested for PyTorch 1.10
+    pip install healpy
+    pip install tensorboard
 
 ```
-python generate_data/4_pkl_to_nii.py --path /mnt/archive/data/synthetic_data/64_points_3_shell/20_snr/gradients --dim
+
+## 2. Prepare the data
+
+```python:
+    data_path = 'data_root'
 ```
 
-#### Real dataset (notebook/3. Real dataset preparation):
+In a root folder:
+* Copy your diffusion MRI data (resp. the mask) as a nifti file under the name **features.nii** (**mask.nii**). 
+* Copy your bvecs and bvals files under the names **bvecs.bvecs** and **bvals.bvals**.
+* In the root folder, create a folder for the response functions, called **response_functions**. There, create a folder for each response function estimation algorithm you want to use. We will use as example folder the name **rf_algo**. In each algorithm folder, copy the white matter, grey matter, and CSF reponse function files under the names **wm_response.txt**, **gm_response.txt**, and **csf_response.txt**. We refer to [Mrtrix3](https://mrtrix.readthedocs.io/en/0.3.16/concepts/response_function_estimation.html) for different response function algorithms.
 
-If you have a nifti file with diffusion MRI data, you can transform it such that ESD can learn from it. The best is to follow the notebook instructions.
+## 3. Short example
+```python:
+    from utils.sampling import HealpixSampling, ShellSampling
+    from utils.dataset import Dataset
+    from utils.response import load_response_function
+    from model.model import Model
+    from model.shutils import ComputeSignal
+    from model.reconstruction import IsoSHConv
+    import torch
 
-### 2.2 Response function estimation (notebook/4. RF estimation)
-Once you have a dataset, the first step is to estimate the tissue reponse functions. For more detail, you can read [Mrtrix3 documentation](https://mrtrix.readthedocs.io/en/latest/constrained_spherical_deconvolution/response_function_estimation.html). 
+    data_path = 'data_root' # Root path of the data
+    rf_name = 'rf_algo' # Name of the response function estimation algorithm
+    sh_degree = 20 # Max spherical harmonic degree of the estimated fODF
+    n_side = 16 # Resolution of the healpix grid (must be a power of 2)
+    depth = 5 # Depth of the U-Net
+    wm, gm, csf = True, True, True # Use wm, gm and csf fODF to reconstruct the signal
+    filter_start = 8 # Number of output features for the first convolution layer
+    kernel_size = 3 # Kernel size in the U-Net
+    normalize = True # Normalize the estimated fODF
 
-* Transform the nifti file into a mif file (mrtrix file)
+    # Load the shell and the graph samplings
+    shellSampling = ShellSampling(f'{data_path}/bvecs.bvecs', f'{data_path}/bvals.bvals', sh_degree=sh_degree, max_sh_degree=8) # V' vertices, S shells
+    graphSampling = HealpixSampling(n_side, depth, sh_degree=sh_degree) # V vertices
+
+    # Load the Polar filter used for the deconvolution
+    polar_filter_equi, polar_filter_inva = load_response_function(f'{data_path}/response_functions/{rf_name}', wm=wm, gm=gm, csf=csf, max_degree=sh_degree, n_shell=len(shellSampling.shell_values)) # 1 x S x C (because 1 equivariant filter, wm), 2 x S x 1 (because 2 invariant filters, gm and csf)
+
+    # Create the deconvolution model
+    model = Model(polar_filter_equi, polar_filter_inva, shellSampling, graphSampling, filter_start, kernel_size, normalize)
+
+    # Generate random signal
+    batch_size = 16
+    shell_vertices = len(shellSampling.vectors)
+    input_feature = 1
+    x = torch.rand(batch_size, input_feature, shell_vertices) # B x F x V'
+    x_reconstructed, x_deconvolved_equi_shc, x_deconvolved_inva_shc = model(x) # B x V', B x 1 x C (because 1 equivariant output, wm), B x 2 x 1 (because 2 invariant output, gm and csf)
+
+    # Compute a signal on the graphSampling grid from the spherical harmonic coefficients
+    denseGrid_interpolate = ComputeSignal(torch.Tensor(graphSampling.sampling.SH2S))
+    x_deconvolved_equi = denseGrid_interpolate(x_deconvolved_equi_shc) # B x 1 x V
+
+    # Spherical harmonic convolution with a polar filter
+    conv_equi = IsoSHConv(polar_filter_equi)
+    x_convolved_equi_shc = conv_equi(x_deconvolved_equi_shc) # B x 1 x S x C
+```
+
+
+## 4. Shell sampling &harr; Graph sampling
+
+In our work, we consider the shells as different spherical feature maps on the unit sphere. The network expects each feature maps to be sampled on the same set of vertices, which is usually not the case. To overcome this issue, the first module of the network is an interpolation from the shell sampling to the graph sampling. We used a spherical harmonic interpolation, but you can define your own interpolation following the example in [Interpolation]().
+
+### 4.1 Scheme sampling
+
+The ShellSampling class computes, for each shell, the matrices to compute:
+- The SHC from the shell signal (with max degree=min(max_sh_order, sh_degree, H), see Class implementation for the definition of H)
+- The shell signal from the SHC (with max degree=sh_degree)
+
+```python:
+    sh_degree = 20
+    shellSampling = ShellSampling(f'{data_path}/bvecs.bvecs', f'{data_path}/bvals.bvals', sh_degree=sh_degree, max_sh_degree=8)
+```
+
+### 4.2 Graph sampling
+
+The GraphSampling class defines the graph structure used by the graph convolution. We use the healpix sampling because of its hierarchical structure that makes easier the pooling and unpooling operations. You can create your own GrahSampling class following the example in [GraphSampling]() and your own pooling class following the example in [Pooling]().
+```python:
+    n_side = 16 # The input and output signal are evaluated on an healpix grid of resolution 16
+    depth = 5 # We use 5 spherical grid resolution in the network (equivalent to 4 spherical pooling and unpooling)
+    sh_degree = 20
+    shellSampling = HealpixSampling(n_side, depth, sh_degree=sh_degree)
+```
+
+## 5. Polar filters
+We work with two different polar filters:
+- Rotation invariant filter, i.e. a filter that can be described using only one spherical harmonic degree (for example the grey matter or the CSF response function are constant filters).
+- Rotation equivariant filter, i.e. a filter that use more than one spherical harmonic degree to be described (for example the white matter response function).
+
+We separate these two classes of filter to speed up the convolution between the filters and the deconvolved signal.
+```python:
+    rf_name = 'rf_algo'
+    wm, gm, csf = True, True, True
+    polar_filter_equi, polar_filter_inva = load_response_function(f'{data_path}/response_functions/{rf_name}', wm=wm, gm=gm, csf=csf, max_degree=sh_degree, n_shell=len(shellSampling.shell_values))
+```
+
+## 6. Deconvolution and Reconstruction model
+We are now ready to create the deconvolution and reconstruction model, defined in [Model]().
+```python:
+    filter_start = 8
+    kernel_size = 5
+    normalize = True
+    model = Model(polar_filter_equi, polar_filter_inva, shellSampling, graphSampling, filter_start, kernel_size, normalize)
+```
+
+### 6.1 Deconvolution module
+The first part of the model is a [deconvolution]() module, itself decomposed in 5 parts:
+- Interpolation of the raw input (living on the Shell Sampling) onto the graph samping. We use a spherical harmonic interpolation, but you can implement your own module [Interpolation]().
+- Deconvolution using a spherical graph U-Net. The model takes as input a voxel and output one spherical feature maps per polar filter. We use a Chebyshev convolution [Convolution]().
+- Separate the equivariant and invariant spherical feature maps, and reduce the invariant spherical maps to one scalar per maps (we use the sum operation).
+- Compute the spherical harmonic coefficient of the equivariant and invariant outputs.
+- (Optional) Normalize the spherical harmonic coefficients.
+
+### 6.2 Reconstruction module
+The second part of the model is a [reconstruction]() module using a spherical harmonic convolution, itself decomposed in 2 parts:
+- Spherical convolution between the polar filters and the spherical maps.
+- Reconstruction on the Shell Sampling.
+
+(TO DO: implement the spatial spherical convolution)
+
+## 7. Apply model
+To start using a model, you can load your nifti image and mask:
+```python:
+    dataset = Dataset(f'{data_path}/features.nii', f'{data_path}/mask.nii')
+
+    data = dataset.__getitem__(0)
+    input = data['input']
+    x_reconstructed, x_deconvolved_equi_shc, x_deconvolved_inva_shc = model(input)
+```
+The first output of the model is the reconstructed signal on the Shell Sampling. The second and third output are the spherical harmonic coefficients of the equivariant and invariant spherical maps.
+
+
+## 8. Train a model
+You can train a new model on your data using the following bash command:
 
 ```
-python generate_data/5_nii_to_mif.py --path /mnt/archive/data/synthetic_data/64_points_3_shell/20_snr/gradients/data_cat --path_bvals_bvecs /mnt/archive/data/synthetic_data/64_points_3_shell/scheme
+    python train.py --data_path /path/to/data/  --batch_size 32 --lr 0.0017 --epoch 50  --filter_start 8 --sh_degree 20  --save_every 1 --loss_intensity L2 --loss_sparsity cauchy --loss_non_negativity L2 --sigma_sparsity 1e-05 --sparsity_weight 1e-4 --intensity_weight 1 --nn_fodf_weight 1 --wm --gm --csf --rf_name rf_algo --depth 5
 ```
 
-* Compute Tournier RF:
+## 9. Test a model
+You can test a trained model on your data using the following bash command:
 
 ```
-python generate_data/6_rf_estimation.py --path /mnt/archive/data/synthetic_data/64_points_3_shell/20_snr/gradients --method_name tournier --lmax 8
+    python test.py --data_path /path/to/data/ --batch_size 32 --model_name model_name --epoch 10
 ```
 
-* Compute Dhollander RF
+## 10. Result
+![alt text](http://url/to/img.png)
 
-```
-python generate_data/6_rf_estimation.py --path /mnt/archive/data/synthetic_data/64_points_3_shell/20_snr/gradients --method_name dhollander --lmax 10 --no_erode
-```
-
-if you use a real dataset, you should delete the flag --no_erode and add the flag --mask.
-
-### 2.3 Compute the CSD fODF from mrtrix (notebook/5. Compute CSD)
-
-You can run the CSD comparison experiments. It is needed if you want to use the data augmentation ESD training. Example for MSMT:
-
-```
-python compare_csd/1_mrtrix_csd.py --path /mnt/archive/data/synthetic_data/64_points_3_shell/20_snr/gradients --path_rf /mnt/archive/data/synthetic_data/64_points_3_shell/20_snr/gradients/response_functions/dhollander_10_None --model msmt --gm --csf
-```
-
-```
-python generate_data/7_mif_to_nii.py --path /mnt/archive/data/synthetic_data/64_points_3_shell/20_snr/gradients/result/msmt_dhollander_10_None_None/fodf/fodf_cat/fodf.mif
-```
-
-### 2.4 Train ESD (notebook/6. Train model)
-
-You can train the Multi-Shell Multi-Tissue ESD model:
-
-```
-python model/train.py --root_path /mnt/archive/data/synthetic_data --scheme 64_points_3_shell --snr 20 --batch_size 32 --lr 0.01 --epoch 50 --activation relu --normalization batch --pooling max --filter_start 8 --max_order 20 --interpolation sh --save_evry 1 --loss_intensity L2 --loss_sparsity cauchy --loss_non_negativity L2 --sigma_sparsity 1e-05 --sparsity_weight 0.001 --intensity_weight 1 --nn_fodf_weight 1 --wm_path /mnt/archive/data/synthetic_data/64_points_3_shell/20_snr/gradients/response_functions/dhollander_10_None/wm_response.txt --gm_path /mnt/archive/data/synthetic_data/64_points_3_shell/20_snr/gradients/response_functions/dhollander_10_None/gm_response.txt --csf_path /mnt/archive/data/synthetic_data/64_points_3_shell/20_snr/gradients/response_functions/dhollander_10_None/csf_response.txt --val --threshold 0.5 --sep_min 15 --max_fiber 3 --split_nb 1
-```
-
-### 2.5 Test ESD (notebook/7. Test model)
-
-See the notebook for examples
-
-### 2.6 Model performance (notebook/8. Model performance)
-See the notebook for examples
+![alt text](http://url/to/img.png)

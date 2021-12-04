@@ -1,4 +1,0 @@
-# b-values: 0,3000
-# command_history: /home/axel/Desktop/Academic/PhD/MRtrix3Tissue/bin/dwi2response dhollander sub1_c01r1/scheme/unknown_snr/gradients//data_cat/features.mif sub1_c01r1/scheme/unknown_snr/gradients//response_functions/dhollander_100,1000,2000,3000/wm_response.txt sub1_c01r1/scheme/unknown_snr/gradients//response_functions/dhollander_100,1000,2000,3000/gm_response.txt sub1_c01r1/scheme/unknown_snr/gradients//response_functions/dhollander_100,1000,2000,3000/csf_response.txt -shells 0,1000,2000,3000  (version=3Tissue_v5.2.8-2-gc82903bb)"
-1347.82335824055 0 0 0 0 0
-417.59375134492 -178.146713757406 102.109550177704 -44.5479299481023 14.242720791669 -3.41253364670426
