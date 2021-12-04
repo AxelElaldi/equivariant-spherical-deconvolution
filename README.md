@@ -5,25 +5,7 @@ PyTorch implementation of the paper [Equivariant Spherical Deconvolution: Learni
 
 We use the spherical graph convolution from [DeepSphere](https://github.com/deepsphere/deepsphere-pytorch).
 
-## 1. Problem statement
-
-The objective of the proposed network is to deconvolve the spherical input data $I:\mathcal{S}^2\longrightarrow\mathbb{R}^s$ ($s$ being the number of shell) with a set of polar spherical reponse functions $\{R_1,...,R_n\}:\mathcal{S}^2\longrightarrow\mathbb{R}^s$, to recover the set of deconvolved signals $\{D_1,...,D_n\}:\mathcal{S}^2\longrightarrow\mathbb{R}$ such that:
-$$I(\theta,\phi) = \sum_{i=1}^n (D_i * R_i)(\theta,\phi)$$
-where a polar spherical signal is a spherical signal depending only on the latitude and $*$ is the spherical convolution operator.
-
-The set $D=\{D_1,...,D_n\}$ is recovered with a Spherical Graph Convolution Network $\psi$.
-$$D = \psi(I)$$
-and we minize a reconstruction loss
-$$\mathcal{L} = ||I - \sum_{i=1}^n (\psi(I)_i * R_i)||_2^2$$
-
-The response functions are given to the network and are stored as [spherical harmonic coefficients](https://en.wikipedia.org/wiki/Spherical_harmonics) (SHC). Since these signals are polar signals, every SHCs are nulls but the ones of order 0. Thus, a reponse function is a matrix of size $S \times L$, where $S$ is the number of input shells and $L$ is the maximum spherical harmonic degree of the response functions. A response function file as a txt file with S rows and L columns ([Mrtrix](https://mrtrix.readthedocs.io/en/3.0.1/concepts/spherical_harmonics.html) convention):
-
-C_{1,0} C_{1,1} ... C_{1,l} # l degree SHC for Shell 1
-
-...
-
-C_{s,0} C_{s,1} ... C_{s,l} # l degree SHC for Shell s
-
+The response functions are given to the network and are stored as [spherical harmonic coefficients](https://en.wikipedia.org/wiki/Spherical_harmonics) (SHC). Since these signals are polar signals, every SHCs are nulls but the ones of order 0. Thus, a reponse function is a matrix of size **SxL**, where **S** is the number of input shells and **L** is the maximum spherical harmonic degree of the response functions. A response function file as a txt file with **S** rows and **L** columns ([MRtrix](https://mrtrix.readthedocs.io/en/3.0.1/concepts/spherical_harmonics.html) convention).
 
 ## 1. Getting started
 
@@ -188,5 +170,9 @@ You can test a trained model on your data using the following bash command:
 
 ## 10. Result
 ![alt text](https://github.com/AxelElaldi/equivariant-spherical-deconvolution/blob/esd/img/drawing-fodf_synth.png)
+Qualitative synthetic (Sec. 3.1) results showing fODF estimation on 128-gradient 2-fiber samples with red arrows representing ground truth fibers and the heatmap showing model prediction. Row 1: CSD [1], Row 2: ESD (ours).
 
-![alt text](https://github.com/AxelElaldi/equivariant-spherical-deconvolution/blob/esd/img/summary.png)
+![alt text](https://github.com/AxelElaldi/equivariant-spherical-deconvolution/blob/esd/img/drawing-tract2.png)
+Post-deconvolution tractography for [Tractometer](http://www.tractometer.org/ismrm_2015_challenge/) (single-shell). ESD demonstrates clearer streamlines with lower noise as opposed to CSD. Readers are encouraged to zoom-in for visual inspection.
+
+[1] Jeurissen, B., Tournier, J.D., Dhollander, T., Connelly, A., Sijbers, J.: Multi-tissue constrained spherical deconvolution for improved analysis of multi-shell diffusion mri data. NeuroImage 103, 411–426 (2014)
