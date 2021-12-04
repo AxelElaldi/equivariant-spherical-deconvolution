@@ -3,6 +3,7 @@ PyTorch implementation of the paper [Equivariant Spherical Deconvolution: Learni
 
 ![alt text](https://github.com/AxelElaldi/equivariant-spherical-deconvolution/blob/esd/img/summary.png)
 
+
 We use the spherical graph convolution from [DeepSphere](https://github.com/deepsphere/deepsphere-pytorch).
 
 The response functions are given to the network and are stored as [spherical harmonic coefficients](https://en.wikipedia.org/wiki/Spherical_harmonics) (SHC). Since these signals are polar signals, every SHCs are nulls but the ones of order 0. Thus, a reponse function is a matrix of size **SxL**, where **S** is the number of input shells and **L** is the maximum spherical harmonic degree of the response functions. A response function file as a txt file with **S** rows and **L** columns ([MRtrix](https://mrtrix.readthedocs.io/en/3.0.1/concepts/spherical_harmonics.html) convention).
@@ -83,7 +84,7 @@ In a root folder:
 
 ## 4. Shell sampling &harr; Graph sampling
 
-In our work, we consider the shells as different spherical feature maps on the unit sphere. The network expects each feature maps to be sampled on the same set of vertices, which is usually not the case. To overcome this issue, the first module of the network is an interpolation from the shell sampling to the graph sampling. We used a spherical harmonic interpolation, but you can define your own interpolation following the example in [Interpolation]().
+In our work, we consider the shells as different spherical feature maps on the unit sphere. The network expects each feature maps to be sampled on the same set of vertices, which is usually not the case. To overcome this issue, the first module of the network is an interpolation from the shell sampling to the graph sampling. We used a spherical harmonic interpolation, but you can define your own interpolation following the example in [Interpolation](https://github.com/AxelElaldi/equivariant-spherical-deconvolution/blob/esd/model/interpolation.py).
 
 ### 4.1 Scheme sampling
 
@@ -98,7 +99,7 @@ The ShellSampling class computes, for each shell, the matrices to compute:
 
 ### 4.2 Graph sampling
 
-The GraphSampling class defines the graph structure used by the graph convolution. We use the healpix sampling because of its hierarchical structure that makes easier the pooling and unpooling operations. You can create your own GrahSampling class following the example in [GraphSampling]() and your own pooling class following the example in [Pooling]().
+The GraphSampling class defines the graph structure used by the graph convolution. We use the healpix sampling because of its hierarchical structure that makes easier the pooling and unpooling operations. You can create your own GrahSampling class following the example in [GraphSampling](https://github.com/AxelElaldi/equivariant-spherical-deconvolution/blob/esd/utils/sampling.py) and your own pooling class following the example in [Pooling](https://github.com/AxelElaldi/equivariant-spherical-deconvolution/blob/esd/utils/pooling.py).
 ```python:
     n_side = 16 # The input and output signal are evaluated on an healpix grid of resolution 16
     depth = 5 # We use 5 spherical grid resolution in the network (equivalent to 4 spherical pooling and unpooling)
@@ -119,7 +120,7 @@ We separate these two classes of filter to speed up the convolution between the 
 ```
 
 ## 6. Deconvolution and Reconstruction model
-We are now ready to create the deconvolution and reconstruction model, defined in [Model]().
+We are now ready to create the deconvolution and reconstruction model, defined in [Model](https://github.com/AxelElaldi/equivariant-spherical-deconvolution/blob/esd/model/model.py).
 ```python:
     filter_start = 8
     kernel_size = 5
@@ -128,15 +129,15 @@ We are now ready to create the deconvolution and reconstruction model, defined i
 ```
 
 ### 6.1 Deconvolution module
-The first part of the model is a [deconvolution]() module, itself decomposed in 5 parts:
-- Interpolation of the raw input (living on the Shell Sampling) onto the graph samping. We use a spherical harmonic interpolation, but you can implement your own module [Interpolation]().
-- Deconvolution using a spherical graph U-Net. The model takes as input a voxel and output one spherical feature maps per polar filter. We use a Chebyshev convolution [Convolution]().
+The first part of the model is a [deconvolution](https://github.com/AxelElaldi/equivariant-spherical-deconvolution/blob/esd/model/deconvolution.py) module, itself decomposed in 5 parts:
+- Interpolation of the raw input (living on the Shell Sampling) onto the graph samping. We use a spherical harmonic interpolation, but you can implement your own module [Interpolation](https://github.com/AxelElaldi/equivariant-spherical-deconvolution/blob/esd/model/interpolation.py).
+- Deconvolution using a spherical graph U-Net. The model takes as input a voxel and output one spherical feature maps per polar filter. We use a Chebyshev convolution [Convolution](https://github.com/AxelElaldi/equivariant-spherical-deconvolution/blob/esd/model/graphconv.py).
 - Separate the equivariant and invariant spherical feature maps, and reduce the invariant spherical maps to one scalar per maps (we use the sum operation).
 - Compute the spherical harmonic coefficient of the equivariant and invariant outputs.
 - (Optional) Normalize the spherical harmonic coefficients.
 
 ### 6.2 Reconstruction module
-The second part of the model is a [reconstruction]() module using a spherical harmonic convolution, itself decomposed in 2 parts:
+The second part of the model is a [reconstruction](https://github.com/AxelElaldi/equivariant-spherical-deconvolution/blob/esd/model/reconstruction.py) module using a spherical harmonic convolution, itself decomposed in 2 parts:
 - Spherical convolution between the polar filters and the spherical maps.
 - Reconstruction on the Shell Sampling.
 
@@ -176,3 +177,19 @@ Qualitative synthetic (Sec. 3.1) results showing fODF estimation on 128-gradient
 Post-deconvolution tractography for [Tractometer](http://www.tractometer.org/ismrm_2015_challenge/) (single-shell). ESD demonstrates clearer streamlines with lower noise as opposed to CSD. Readers are encouraged to zoom-in for visual inspection.
 
 [1] Jeurissen, B., Tournier, J.D., Dhollander, T., Connelly, A., Sijbers, J.: Multi-tissue constrained spherical deconvolution for improved analysis of multi-shell diffusion mri data. NeuroImage 103, 411–426 (2014)
+
+## Licence
+
+Part of the graph convolution code comes from [DeepSphere](https://github.com/deepsphere/deepsphere-pytorch).
+
+Please consider citing our paper if you find this repository useful.
+```
+    @inproceedings{elaldi2021equivariant,
+    title={Equivariant Spherical Deconvolution: Learning Sparse Orientation Distribution Functions from Spherical Data},
+    author={Elaldi, Axel and Dey, Neel and Kim, Heejong and Gerig, Guido},
+    booktitle={International Conference on Information Processing in Medical Imaging},
+    pages={267--278},
+    year={2021},
+    organization={Springer}
+    }
+```
