@@ -141,8 +141,6 @@ The second part of the model is a [reconstruction](https://github.com/AxelElaldi
 - Spherical convolution between the polar filters and the spherical maps.
 - Reconstruction on the Shell Sampling.
 
-(TO DO: implement the spatial spherical convolution)
-
 ## 7. Apply model
 To start using a model, you can load your nifti image and mask:
 ```python:
