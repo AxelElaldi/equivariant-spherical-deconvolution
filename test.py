@@ -38,86 +38,87 @@ def main(data_path, batch_size, kernel_size,
         model_name (str): Name of the model folder
         epoch (int): Epoch to use for testing
     """
-    
-    # Load the shell and the graph samplings
-    shellSampling = ShellSampling(f'{data_path}/bvecs.bvecs', f'{data_path}/bvals.bvals', sh_degree=sh_degree, max_sh_degree=8)
-    graphSampling = HealpixSampling(n_side, depth, sh_degree=sh_degree)
+    with torch.no_grad():
+        # Load the shell and the graph samplings
+        shellSampling = ShellSampling(f'{data_path}/bvecs.bvecs', f'{data_path}/bvals.bvals', sh_degree=sh_degree, max_sh_degree=8)
+        graphSampling = HealpixSampling(n_side, depth, sh_degree=sh_degree)
 
-    # Load the image and the mask
-    dataset = DMRIDataset(f'{data_path}/features.nii', f'{data_path}/mask.nii')
-    dataloader_test = DataLoader(dataset=dataset, batch_size=batch_size, shuffle=False)
-    n_batch = len(dataloader_test)
-    
-    # Load the Polar filter used for the deconvolution
-    polar_filter_equi, polar_filter_inva = load_response_function(f'{data_path}/response_functions/{rf_name}', wm=wm, gm=gm, csf=csf, max_degree=sh_degree, n_shell=len(shellSampling.shell_values))
+        # Load the image and the mask
+        dataset = DMRIDataset(f'{data_path}/features.nii', f'{data_path}/mask.nii')
+        dataloader_test = DataLoader(dataset=dataset, batch_size=batch_size, shuffle=False)
+        n_batch = len(dataloader_test)
+        
+        # Load the Polar filter used for the deconvolution
+        polar_filter_equi, polar_filter_inva = load_response_function(f'{data_path}/response_functions/{rf_name}', wm=wm, gm=gm, csf=csf, max_degree=sh_degree, n_shell=len(shellSampling.shell_values))
 
-    # Create the deconvolution model and load the trained model
-    model = Model(polar_filter_equi, polar_filter_inva, shellSampling, graphSampling, filter_start, kernel_size, normalize)
-    model.load_state_dict(torch.load(f'{data_path}/result/{model_name}/history/epoch_{epoch}.pth'), strict=False)
-    # Load model in GPU
-    model = model.to(DEVICE)
+        # Create the deconvolution model and load the trained model
+        model = Model(polar_filter_equi, polar_filter_inva, shellSampling, graphSampling, filter_start, kernel_size, normalize)
+        model.load_state_dict(torch.load(f'{data_path}/result/{model_name}/history/epoch_{epoch}.pth'), strict=False)
+        # Load model in GPU
+        model = model.to(DEVICE)
+        model.eval()
 
-    # Output initialization
-    nb_coef = int((sh_degree + 1) * (sh_degree / 2 + 1))
-    reconstruction_list = np.zeros((dataset.data.shape[0],
-                                    dataset.data.shape[1],
-                                    dataset.data.shape[2], len(shellSampling.vectors)))
-    if wm:
-        fodf_shc_wm_list = np.zeros((dataset.data.shape[0],
-                                     dataset.data.shape[1],
-                                     dataset.data.shape[2], nb_coef))
-    if gm:
-        fodf_shc_gm_list = np.zeros((dataset.data.shape[0],
-                                     dataset.data.shape[1],
-                                     dataset.data.shape[2], 1))
-    if csf:
-        fodf_shc_csf_list = np.zeros((dataset.data.shape[0],
-                                      dataset.data.shape[1],
-                                      dataset.data.shape[2], 1))
-    # Test on batch.
-    for i, data in enumerate(dataloader_test):
-        print(str(i * 100 / n_batch) + " %", end='\r')
-        # Load the data in the DEVICE
-        input = data['input'].to(DEVICE)
-        sample_id = data['sample_id']
+        # Output initialization
+        nb_coef = int((sh_degree + 1) * (sh_degree / 2 + 1))
+        reconstruction_list = np.zeros((dataset.data.shape[0],
+                                        dataset.data.shape[1],
+                                        dataset.data.shape[2], len(shellSampling.vectors)))
+        if wm:
+            fodf_shc_wm_list = np.zeros((dataset.data.shape[0],
+                                        dataset.data.shape[1],
+                                        dataset.data.shape[2], nb_coef))
+        if gm:
+            fodf_shc_gm_list = np.zeros((dataset.data.shape[0],
+                                        dataset.data.shape[1],
+                                        dataset.data.shape[2], 1))
+        if csf:
+            fodf_shc_csf_list = np.zeros((dataset.data.shape[0],
+                                        dataset.data.shape[1],
+                                        dataset.data.shape[2], 1))
+        # Test on batch.
+        for i, data in enumerate(dataloader_test):
+            print(str(i * 100 / n_batch) + " %", end='\r')
+            # Load the data in the DEVICE
+            input = data['input'].to(DEVICE)
+            sample_id = data['sample_id']
 
-        x_reconstructed, x_deconvolved_equi_shc, x_deconvolved_inva_shc = model(input)
-        for j in range(len(input)):
-            sample_id_j = sample_id[j]
-            reconstruction_list[dataset.x[sample_id_j],
-                                dataset.y[sample_id_j],
-                                dataset.z[sample_id_j]] += x_reconstructed[j].cpu().detach().numpy()
-            if wm:
-                fodf_shc_wm_list[dataset.x[sample_id_j],
-                                 dataset.y[sample_id_j],
-                                 dataset.z[sample_id_j]] += x_deconvolved_equi_shc[j, 0].cpu().detach().numpy()
-            index = 0
-            if gm:
-                fodf_shc_gm_list[dataset.x[sample_id_j],
-                                 dataset.y[sample_id_j],
-                                 dataset.z[sample_id_j]] += x_deconvolved_inva_shc[j, index].cpu().detach().numpy()
-                index += 1
-            if csf:
-                fodf_shc_csf_list[dataset.x[sample_id_j],
-                                  dataset.y[sample_id_j],
-                                  dataset.z[sample_id_j]] += x_deconvolved_inva_shc[j, index].cpu().detach().numpy()
+            x_reconstructed, x_deconvolved_equi_shc, x_deconvolved_inva_shc = model(input)
+            for j in range(len(input)):
+                sample_id_j = sample_id[j]
+                reconstruction_list[dataset.x[sample_id_j],
+                                    dataset.y[sample_id_j],
+                                    dataset.z[sample_id_j]] += x_reconstructed[j].cpu().detach().numpy()
+                if wm:
+                    fodf_shc_wm_list[dataset.x[sample_id_j],
+                                    dataset.y[sample_id_j],
+                                    dataset.z[sample_id_j]] += x_deconvolved_equi_shc[j, 0].cpu().detach().numpy()
+                index = 0
+                if gm:
+                    fodf_shc_gm_list[dataset.x[sample_id_j],
+                                    dataset.y[sample_id_j],
+                                    dataset.z[sample_id_j]] += x_deconvolved_inva_shc[j, index].cpu().detach().numpy()
+                    index += 1
+                if csf:
+                    fodf_shc_csf_list[dataset.x[sample_id_j],
+                                    dataset.y[sample_id_j],
+                                    dataset.z[sample_id_j]] += x_deconvolved_inva_shc[j, index].cpu().detach().numpy()
 
-    # Save the results
-    reconstruction_list = np.array(reconstruction_list).astype(np.float32)
-    img = nib.Nifti1Image(reconstruction_list, dataset.affine, dataset.header)
-    nib.save(img, f'{data_path}/result/{model_name}/test/epoch_{epoch}/reconstruction.nii')
-    if wm:
-        fodf_shc_wm_nii = np.array(fodf_shc_wm_list).astype(np.float32)
-        img = nib.Nifti1Image(fodf_shc_wm_nii, dataset.affine, dataset.header)
-        nib.save(img, f'{data_path}/result/{model_name}/test/epoch_{epoch}/fodf.nii')
-    if gm:
-        fodf_shc_gm_nii = np.array(fodf_shc_gm_list).astype(np.float32)
-        img = nib.Nifti1Image(fodf_shc_gm_nii, dataset.affine, dataset.header)
-        nib.save(img, f'{data_path}/result/{model_name}/test/epoch_{epoch}/fodf_gm.nii')
-    if csf:
-        fodf_shc_csf_nii = np.array(fodf_shc_csf_list).astype(np.float32)
-        img = nib.Nifti1Image(fodf_shc_csf_nii, dataset.affine, dataset.header)
-        nib.save(img, f'{data_path}/result/{model_name}/test/epoch_{epoch}/fodf_csf.nii')
+        # Save the results
+        reconstruction_list = np.array(reconstruction_list).astype(np.float32)
+        img = nib.Nifti1Image(reconstruction_list, dataset.affine, dataset.header)
+        nib.save(img, f'{data_path}/result/{model_name}/test/epoch_{epoch}/reconstruction.nii')
+        if wm:
+            fodf_shc_wm_list = np.array(fodf_shc_wm_list).astype(np.float32)
+            img = nib.Nifti1Image(fodf_shc_wm_list, dataset.affine, dataset.header)
+            nib.save(img, f'{data_path}/result/{model_name}/test/epoch_{epoch}/fodf.nii')
+        if gm:
+            fodf_shc_gm_list = np.array(fodf_shc_gm_list).astype(np.float32)
+            img = nib.Nifti1Image(fodf_shc_gm_list, dataset.affine, dataset.header)
+            nib.save(img, f'{data_path}/result/{model_name}/test/epoch_{epoch}/fodf_gm.nii')
+        if csf:
+            fodf_shc_csf_list = np.array(fodf_shc_csf_list).astype(np.float32)
+            img = nib.Nifti1Image(fodf_shc_csf_list, dataset.affine, dataset.header)
+            nib.save(img, f'{data_path}/result/{model_name}/test/epoch_{epoch}/fodf_csf.nii')
 
 
 if __name__ == '__main__':
