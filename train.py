@@ -24,7 +24,7 @@ def main(data_path, batch_size, lr, n_epoch, kernel_size,
          filter_start, sh_degree, depth, n_side,
          rf_name, wm, gm, csf,
          loss_fn_intensity, loss_fn_non_negativity, loss_fn_sparsity, sigma_sparsity,
-         intensity_weight, nn_fodf_weight, sparsity_weight,
+         intensity_weight, nn_fodf_weight, sparsity_weight, pve_weight,
          save_path, save_every, normalize, load_state):
     """Train a model
     Args:
@@ -98,6 +98,8 @@ def main(data_path, batch_size, lr, n_epoch, kernel_size,
         loss_intensity_ = 0
         loss_sparsity_ = 0
         loss_non_negativity_fodf_ = 0
+        loss_pve_equi_ = 0
+        loss_pve_inva_ = 0
 
         # Train on batch.
         for batch, data in enumerate(dataloader_train):
@@ -143,16 +145,33 @@ def main(data_path, batch_size, lr, n_epoch, kernel_size,
 
                 ###############################################################################################
                 # Partial volume regularizer
-                regularizer_equi = 0.00001 * 1/torch.mean(x_deconvolved_equi_shc[mask==1][:, :, 0])*np.sqrt(4*np.pi)
-                loss += regularizer_equi
-                to_print += ', Equi regularizer: {0:.10f}'.format(regularizer_equi.item())
+                loss_pve_equi = 1/torch.mean(x_deconvolved_equi_shc[mask==1][:, :, 0])*np.sqrt(4*np.pi)
+                loss_pve_equi_ += loss_pve_equi.item()
+                loss += pve_weight * loss_pve_equi
+                to_print += ', Equi regularizer: {0:.10f}'.format(loss_pve_equi.item())
             
-            if not x_deconvolved_inva_shc  is None:
-                ###############################################################################################
+            #if not x_deconvolved_inva_shc  is None:
+            #    ###############################################################################################
+            #    # Partial volume regularizer
+            #    loss_pve_inva = 1/torch.mean(x_deconvolved_inva_shc[mask==1][:, :, 0])*np.sqrt(4*np.pi)
+            #    loss_pve_inva_ += loss_pve_inva.item()
+            #    loss += pve_weight * loss_pve_inva
+            #    to_print += ', Inva regularizer: {0:.10f}'.format(loss_pve_inva.item())
+            ###############################################################################################
                 # Partial volume regularizer
-                regularizer_inva = 0.00001 * 1/torch.mean(x_deconvolved_inva_shc[mask==1][:, :, 0])*np.sqrt(4*np.pi)
-                loss += regularizer_inva
-                to_print += ', Inva regularizer: {0:.10f}'.format(regularizer_inva.item())
+            index = 0
+            if gm:
+                loss_pve_inva = 1/torch.mean(x_deconvolved_inva_shc[:, index, 0][mask==1])*np.sqrt(4*np.pi)
+                loss_pve_inva_ += loss_pve_inva.item()
+                loss += pve_weight * loss_pve_inva
+                to_print += ', Inva regularizer GM: {0:.10f}'.format(loss_pve_inva.item())
+                index += 1
+            if csf:
+                loss_pve_inva = 1/torch.mean(x_deconvolved_inva_shc[:, index, 0][mask==1])*np.sqrt(4*np.pi)
+                loss_pve_inva_ += loss_pve_inva.item()
+                loss += pve_weight * loss_pve_inva
+                to_print += ', Inva regularizer CSF: {0:.10f}'.format(loss_pve_inva.item())
+            
 
 
             ###############################################################################################
@@ -161,6 +180,8 @@ def main(data_path, batch_size, lr, n_epoch, kernel_size,
             writer.add_scalar('Batch/train_intensity', loss_intensity.item(), tb_j)
             writer.add_scalar('Batch/train_sparsity', loss_sparsity.item(), tb_j)
             writer.add_scalar('Batch/train_nn', loss_non_negativity_fodf.item(), tb_j)
+            writer.add_scalar('Batch/train_pve_equi', loss_pve_equi.item(), tb_j)
+            writer.add_scalar('Batch/train_pve_inva', loss_pve_inva.item(), tb_j)
             writer.add_scalar('Batch/train_total', loss.item(), tb_j)
 
             ###############################################################################################
@@ -202,6 +223,16 @@ def main(data_path, batch_size, lr, n_epoch, kernel_size,
         loss_ += nn_fodf_weight * loss_non_negativity_fodf_
         to_print += ', WM fODF NN: {0:.10f}'.format(loss_non_negativity_fodf_ / n_batch)
 
+        save_loss['train'][epoch]['loss_pve_equi'] = loss_pve_equi_ / n_batch
+        save_loss['train'][epoch]['weight_loss_pve_equi'] = pve_weight
+        loss_ += pve_weight * loss_pve_equi_
+        to_print += ', Equi regularizer: {0:.10f}'.format(loss_pve_equi_ / n_batch)
+
+        save_loss['train'][epoch]['loss_pve_inva'] = loss_pve_inva_ / n_batch
+        save_loss['train'][epoch]['weight_loss_pve_inva'] = pve_weight
+        loss_ += pve_weight * loss_pve_inva_
+        to_print += ', Inva regularizer: {0:.10f}'.format(loss_pve_inva_ / n_batch)
+
         save_loss['train'][epoch]['loss'] = loss_ / n_batch
         to_print = 'Epoch [{0}/{1}], Train Loss: {2:.10f}'.format(epoch + 1, n_epoch, loss_ / n_batch) + to_print
         print(to_print)
@@ -209,6 +240,8 @@ def main(data_path, batch_size, lr, n_epoch, kernel_size,
         writer.add_scalar('Epoch/train_intensity', loss_intensity_ / n_batch, epoch)
         writer.add_scalar('Epoch/train_sparsity', loss_sparsity_ / n_batch, epoch)
         writer.add_scalar('Epoch/train_nn', loss_non_negativity_fodf_ / n_batch, epoch)
+        writer.add_scalar('Epoch/train_pve_equi', loss_pve_equi_ / n_batch, epoch)
+        writer.add_scalar('Epoch/train_pve_inva', loss_pve_inva_ / n_batch, epoch)
         writer.add_scalar('Epoch/train_total', loss_ / n_batch, epoch)
 
         ###############################################################################################
@@ -347,6 +380,12 @@ if __name__ == '__main__':
         type=float
     )
     parser.add_argument(
+        '--pve_weight',
+        default=1e-5,
+        help='PVE regularizer weight (default: 1e-5)',
+        type=float
+    )
+    parser.add_argument(
         '--load_state',
         help='Load a saved model (default: None)',
         type=str
@@ -375,8 +414,8 @@ if __name__ == '__main__':
     )
     parser.add_argument(
         '--normalize',
-        action='store_false',
-        help='Norm the partial volume sum to be 1 (default: True)',
+        action='store_true',
+        help='Norm the partial volume sum to be 1 (default: False)',
     )
     parser.add_argument(
         '--concatenate',
@@ -406,7 +445,7 @@ if __name__ == '__main__':
     normalize = args.normalize
 
     # Saving parameters
-    save_path = os.path.join(data_path, 'result')
+    result_path = os.path.join(data_path, 'result')
     save_every = args.save_every
 
     # Intensity loss
@@ -419,6 +458,8 @@ if __name__ == '__main__':
     # Non-negativity loss
     loss_fn_non_negativity = args.loss_non_negativity
     nn_fodf_weight = args.nn_fodf_weight
+    # PVE loss
+    pve_weight = args.pve_weight
 
     # Load pre-trained model and response functions
     load_state = args.load_state
@@ -428,18 +469,23 @@ if __name__ == '__main__':
     csf = args.csf
 
     # Save directory
-    if not os.path.exists(save_path):
-        print('Create new directory: {0}'.format(save_path))
-        os.makedirs(save_path)
-    save_path = os.path.join(save_path, time.strftime("%d_%m_%Y_%H_%M_%S", time.gmtime()))
-    print('Save path: {0}'.format(save_path))
+    if not os.path.exists(result_path):
+        print('Create new directory: {0}'.format(result_path))
+        os.makedirs(result_path)
 
     # History directory
-    history_path = os.path.join(save_path, 'history')
-    if not os.path.exists(history_path):
-        print('Create new directory: {0}'.format(history_path))
-        os.makedirs(history_path)
-
+    not_created = True
+    while not_created:
+        save_path = os.path.join(result_path, time.strftime("%d_%m_%Y_%H_%M_%S", time.gmtime()))
+        history_path = os.path.join(save_path, 'history')
+        if not os.path.exists(history_path):
+            print('Create new directory: {0}'.format(history_path))
+            try:
+                os.makedirs(history_path)
+                print('Save path: {0}'.format(save_path))
+                not_created = False
+            except:
+                not_created = True
     # Save parameters
     with open(os.path.join(save_path, 'args.txt'), 'w') as file:
         json.dump(args.__dict__, file, indent=2)
@@ -448,6 +494,6 @@ if __name__ == '__main__':
          filter_start, sh_degree, depth, n_side,
          rf_name, wm, gm, csf,
          loss_fn_intensity, loss_fn_non_negativity, loss_fn_sparsity, sigma_sparsity,
-         intensity_weight, nn_fodf_weight, sparsity_weight,
+         intensity_weight, nn_fodf_weight, sparsity_weight, pve_weight,
          save_path, save_every, normalize, load_state)
 

@@ -157,7 +157,7 @@ The first output of the model is the reconstructed signal on the Shell Sampling.
 You can train a new model on your data using the following bash command:
 
 ```
-    python train.py --data_path /path/to/data/  --batch_size 32 --lr 0.0017 --epoch 50  --filter_start 8 --sh_degree 20  --save_every 1 --loss_intensity L2 --loss_sparsity cauchy --loss_non_negativity L2 --sigma_sparsity 1e-05 --sparsity_weight 1e-4 --intensity_weight 1 --nn_fodf_weight 1 --wm --gm --csf --rf_name rf_algo --depth 5
+    python train.py --data_path /path/to/data/  --batch_size 32 --lr 0.0017 --epoch 50  --filter_start 8 --sh_degree 20  --save_every 1 --loss_intensity L2 --loss_sparsity cauchy --loss_non_negativity L2 --sigma_sparsity 1e-05 --sparsity_weight 1e-4 --intensity_weight 1 --nn_fodf_weight 1 --wm --gm --csf --rf_name rf_algo --depth 5 --normalize
 ```
 
 ## 9. Test a model
